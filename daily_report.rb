@@ -4,21 +4,17 @@ require 'json'
 require 'dotenv/load'
 require "active_support"
 require "active_support/number_helper"
+require_relative './utils/telegram'
+require_relative './utils/coingecko'
 
-def send_telegram_message(bot_token:, chat_id: ENV['TELEGRAM_DEFAULT_CHAT_ID'], message:)
-  url = URI("https://api.telegram.org/bot#{bot_token}/sendMessage")
-  params = { chat_id: chat_id, text: message }
-  Net::HTTP.post_form(url, params)
-end
-
-def get_crypto_price(crypto_ids, currencies = ['usd'])
-  url = URI("https://api.coingecko.com/api/v3/simple/price?ids=#{crypto_ids.join(',')}&vs_currencies=#{currencies.join(',')}")
-  response = Net::HTTP.get(url)
-  data = JSON.parse(response)
+def get_formatted_crypto_price(crypto_ids, currencies = ['usd'])
+  data = Utils::Coingecko.get_price(crypto_ids, currencies)
   returned_message = ""
 
   crypto_ids.map do |crypto_id|
-    price = currencies.map { |currency| "#{ActiveSupport::NumberHelper.number_to_currency(data[crypto_id][currency], unit: get_unit(currency), separator: ",", delimiter: " ")}" }.join(' // ')
+    price = currencies.map do |currency|
+              "#{ActiveSupport::NumberHelper.number_to_currency(data[crypto_id][currency], unit: get_unit(currency), separator: ",", delimiter: " ")}"
+            end.join(' // ')
 
     returned_message = returned_message + "#{get_emoji(crypto_id)} #{crypto_id.capitalize} price: #{price}\n"
   end
@@ -51,7 +47,7 @@ def get_emoji(crypto_id)
     end
 end
 
-send_telegram_message(
+Utils::Telegram.send_message(
   bot_token: ENV['TELEGRAM_BOT_TOKEN'],
-  message: "📊 Daily Crypto Snapshot\n\n#{get_crypto_price(['bitcoin', 'ethereum', 'solana', 'binancecoin'], ['usd',   'eur'])}"
+  message: "📊 Daily Crypto Snapshot\n\n#{get_formatted_crypto_price(['bitcoin', 'ethereum', 'solana', 'binancecoin'], ['usd', 'eur'])}"
 )
